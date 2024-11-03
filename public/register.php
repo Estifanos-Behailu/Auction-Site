@@ -3,16 +3,59 @@ require_once '../includes/config.php';
 require_once '../includes/auth.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $username = $_POST['username'];
-    $email = $_POST['email'];
-    $password = $_POST['password'];
-    
-    if (register($username, $email, $password)) {
-        header("Location: login.php");
-        exit();
-    } else {
-        $error = "Registration failed. Please try again.";
+  $username = $_POST['username'];
+  $email = $_POST['email'];
+  $password = $_POST['password'];
+
+  // Validate password strength
+  if (!validate_password($password)) {
+    $error = "Password does not meet requirements.";
+  } else {
+    // Email validation function (existing code)
+    function is_valid_email($email) {
+      if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return false;
+      }
+      $domain = substr(strrchr($email, "@"), 1);
+      return checkdnsrr($domain, "MX");
     }
+
+    if (!is_valid_email($email)) {
+      $error = "Invalid email address.";
+    } else {
+      if (register($username, $email, password_hash($password, PASSWORD_BCRYPT))) {
+        $token = bin2hex(random_bytes(16));
+        $stmt = $conn->prepare("INSERT INTO email_verification (user_id, token) VALUES ((SELECT id FROM users WHERE email = ?), ?)");
+        $stmt->bind_param("ss", $email, $token);
+        $stmt->execute();
+
+        $verification_link = "http://yourwebsite.com/verify.php?token=$token";
+        $subject = "Email Verification";
+        $message = "Click the following link to verify your email: $verification_link";
+        $headers = "From: no-reply@yourwebsite.com";
+
+        mail($email, $subject, $message, $headers);
+
+        header("Location: login.php?message=Verification email sent. Please check your inbox.");
+        exit();
+      } else {
+        $error = "Registration failed. Please try again.";
+      }
+    }
+  }
+}
+
+// Function to validate password strength (new)
+function validate_password($password) {
+  $uppercase = preg_match('/[A-Z]/', $password);
+  $lowercase = preg_match('/[a-z]/', $password);
+  $number    = preg_match('/\d/', $password);
+  $special   = preg_match('/[!@#$%^&*()_+\-=\[\]{};:\'\"\<\,\.\>\?\/|\\\]/',  
+ $password);
+
+  $length = strlen($password);
+
+  return $length >= 8 && $uppercase && $lowercase && $number && $special;
 }
 ?>
 
@@ -35,7 +78,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             --color-danger: #f44336;
             --transition-speed: 0.3s;
         }
-
         body {
             font-family: 'Roboto', sans-serif;
             background-color: var(--color-background);
@@ -47,7 +89,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             display: flex;
             flex-direction: column;
         }
-
         .main-content {
             flex: 1;
             display: flex;
@@ -55,7 +96,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             justify-content: center;
             padding: 2rem;
         }
-
         .register-container {
             background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
             padding: 2.5rem;
@@ -65,7 +105,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             max-width: 400px;
             animation: fadeIn 0.5s ease forwards;
         }
-
         h1 {
             font-family: 'Playfair Display', serif;
             color: var(--color-accent);
@@ -77,7 +116,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             position: relative;
             padding-bottom: 15px;
         }
-
         h1::after {
             content: '';
             position: absolute;
@@ -88,18 +126,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             height: 3px;
             background-color: var(--color-accent);
         }
-
         .form-group {
             margin-bottom: 1.5rem;
         }
-
         label {
             display: block;
             margin-bottom: 0.5rem;
             color: var(--color-text);
             font-weight: 500;
         }
-
         input {
             width: 100%;
             padding: 12px;
@@ -111,16 +146,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             transition: all var(--transition-speed) ease;
             margin-bottom: 1rem;
         }
-
         input:focus {
             outline: none;
             box-shadow: 0 0 0 2px var(--color-accent);
         }
-
         input::placeholder {
             color: var(--color-text-muted);
         }
-
         button {
             width: 100%;
             background: linear-gradient(to right, var(--color-accent), #e0c179);
@@ -136,12 +168,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             letter-spacing: 1px;
             margin-top: 1rem;
         }
-
         button:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(201, 165, 92, 0.3);
         }
-
         .error {
             background-color: rgba(244, 67, 54, 0.1);
             color: var(--color-danger);
@@ -150,28 +180,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             margin-bottom: 1.5rem;
             text-align: center;
         }
-
         .login-link {
             text-align: center;
             margin-top: 1.5rem;
             color: var(--color-text-muted);
         }
-
         .login-link a {
             color: var(--color-accent);
             text-decoration: none;
             transition: color var(--transition-speed) ease;
         }
-
         .login-link a:hover {
             color: #e0c179;
         }
-
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
-
         .password-requirements {
             font-size: 0.85rem;
             color: var(--color-text-muted);
