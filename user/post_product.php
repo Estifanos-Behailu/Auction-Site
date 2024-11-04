@@ -64,11 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     // Process image upload
     if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
-        $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
         $filename = $_FILES['image']['name'];
         $filetype = pathinfo($filename, PATHINFO_EXTENSION);
         if (!in_array(strtolower($filetype), $allowed)) {
-            $errors[] = "Only JPG, JPEG, PNG, and GIF files are allowed.";
+            $errors[] = "Only JPG, JPEG, PNG, WEBP, and GIF files are allowed.";
         }
     } else {
         $errors[] = "Image is required.";
@@ -355,16 +355,51 @@ $max_end_time = date('Y-m-d\TH:i', strtotime('+30 days'));
         const previewImage = document.getElementById('preview-image');
         const imageUploadContainer = document.querySelector('.image-upload-container');
         const imageUploadText = document.querySelector('.image-upload-text');
+        let timeoutId;
 
-        startTimeInput.addEventListener('change', function() {
-            const startTime = new Date(this.value);
-            const minEndTime = new Date(startTime.getTime() + (60 * 60 * 1000)); // Start time + 1 hour
-            endTimeInput.min = minEndTime.toISOString().slice(0, 16);
+        startTimeInput.addEventListener('input', function() {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                const startTime = new Date(this.value);
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const startDay = new Date(startTime.getFullYear(), startTime.getMonth(), startTime.getDate());
 
-            if (new Date(endTimeInput.value) < minEndTime) {
-                endTimeInput.value = minEndTime.toISOString().slice(0, 16);
-            }
+                if (startDay.getTime() === today.getTime()) {
+                    const minStartTime = new Date(now.getTime() + (2 * 60 * 60 * 1000)); // Now + 2 hours
+                    if (startTime < minStartTime) {
+                        alertMessage("Set your auction at least 2 hours away!");
+                        this.value = minStartTime.toISOString().slice(0, 16);
+                    }
+                }
+
+                const minEndTime = new Date(startTime.getTime() + (60 * 60 * 1000)); // Start time + 1 hour
+                endTimeInput.min = minEndTime.toISOString().slice(0, 16);
+
+                if (new Date(endTimeInput.value) < minEndTime) {
+                    endTimeInput.value = minEndTime.toISOString().slice(0, 16);
+                }
+            }, 500); // Delay validation by 500ms
         });
+
+        function alertMessage(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.textContent = message;
+            alertDiv.style.position = 'fixed';
+            alertDiv.style.top = '10px';
+            alertDiv.style.left = '50%';
+            alertDiv.style.transform = 'translateX(-50%)';
+            alertDiv.style.backgroundColor = 'rgba(244, 67, 54, 0.9)';
+            alertDiv.style.color = '#fff';
+            alertDiv.style.padding = '10px 20px';
+            alertDiv.style.borderRadius = '5px';
+            alertDiv.style.zIndex = '1000';
+            document.body.appendChild(alertDiv);
+
+            setTimeout(() => {
+                document.body.removeChild(alertDiv);
+            }, 3000);
+        }
 
         imageUploadContainer.addEventListener('click', function() {
             imageInput.click();
@@ -405,6 +440,17 @@ $max_end_time = date('Y-m-d\TH:i', strtotime('+30 days'));
             }
             reader.readAsDataURL(file);
         });
+
+        // Show messages for 3 seconds
+        const errorMessages = document.querySelectorAll('.error-message');
+        const successMessage = document.querySelector('.success-message');
+
+        if (errorMessages.length > 0 || successMessage) {
+            setTimeout(() => {
+                errorMessages.forEach(msg => msg.style.display = 'none');
+                if (successMessage) successMessage.style.display = 'none';
+            }, 3000);
+        }
     });
     </script>
 </body>

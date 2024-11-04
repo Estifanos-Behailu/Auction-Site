@@ -10,14 +10,13 @@ $auction_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 // Handle favoriting
 if (isset($_POST['toggle_favorite']) && is_logged_in() && !is_admin()) {
     $user_id = $_SESSION['user_id'];
-    $is_favorited = toggle_favorite($user_id, $auction_id); // $auction_id is already set to the product ID
+    $is_favorited = toggle_favorite($user_id, $auction_id);
     $success_message = $is_favorited ? "Auction added to favorites." : "Auction removed from favorites.";
 }
 
 // Handle auction deletion
 if (isset($_POST['delete_auction']) && is_logged_in()) {
     try {
-        // Check if the logged-in user is the owner of the auction
         $check_owner_query = "SELECT seller_id FROM products WHERE id = ?";
         $check_stmt = $conn->prepare($check_owner_query);
         $check_stmt->bind_param("i", $auction_id);
@@ -29,7 +28,6 @@ if (isset($_POST['delete_auction']) && is_logged_in()) {
             throw new Exception("You don't have permission to delete this auction.");
         }
 
-        // Check if there are any bids on the auction
         $check_bids_query = "SELECT COUNT(*) as bid_count FROM bids WHERE product_id = ?";
         $bid_stmt = $conn->prepare($check_bids_query);
         $bid_stmt->bind_param("i", $auction_id);
@@ -41,7 +39,6 @@ if (isset($_POST['delete_auction']) && is_logged_in()) {
             throw new Exception("Cannot delete auction with existing bids.");
         }
 
-        // If all checks pass, delete the auction
         $delete_query = "DELETE FROM products WHERE id = ?";
         $delete_stmt = $conn->prepare($delete_query);
         $delete_stmt->bind_param("i", $auction_id);
@@ -78,21 +75,12 @@ try {
         throw new Exception("Auction not found");
     }
 
-    // Check if the current user is the auction owner
     $is_owner = is_logged_in() && $_SESSION['user_id'] == $auction['seller_id'];
-
-    // Check if the auction is favorited by the current user
     $is_favorited = is_logged_in() && !is_admin() ? is_favorite($_SESSION['user_id'], $auction_id) : false;
-
-    // Check if the auction has ended
     $auction_ended = strtotime($auction['end_time']) < time();
-
-    // Check if the user is an admin
     $is_admin = is_admin();
 
-    // Fetch additional admin-specific information if the user is an admin
     if ($is_admin) {
-        // Fetch all bids for this auction
         $bids_query = "SELECT b.*, u.username 
                        FROM bids b 
                        JOIN users u ON b.bidder_id = u.id 
@@ -103,7 +91,6 @@ try {
         $bids_stmt->execute();
         $all_bids = $bids_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-        // Fetch seller information
         $seller_query = "SELECT * FROM users WHERE id = ?";
         $seller_stmt = $conn->prepare($seller_query);
         $seller_stmt->bind_param("i", $auction['seller_id']);
@@ -127,10 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bid_amount'])) {
         if ($bid_amount <= ($auction['highest_bid'] ?? $auction['start_price'])) {
             $error_message = "Your bid must be higher than the current highest bid.";
         } else {
-            // Place the bid
             if (place_bid($auction_id, $_SESSION['user_id'], $bid_amount)) {
                 $success_message = "Your bid has been placed successfully!";
-                // Refresh auction details
                 $auction = get_auction_details($auction_id);
                 $current_bid = $auction['current_bid'];
                 $user_highest_bid = get_user_highest_bid($auction_id, $_SESSION['user_id']);
@@ -164,6 +149,14 @@ $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/auction-site/';
         --transition-speed: 0.3s;
     }
 
+    body {
+        background-color: var(--color-background);
+        font-family: 'Roboto', sans-serif;
+        color: var(--color-text);
+        margin: 0;
+        padding: 0;
+    }
+
     .notifications {
         position: fixed;
         top: 20px;
@@ -195,20 +188,40 @@ $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/auction-site/';
 
     .main-content {
         display: flex;
-        gap: 2rem;
+        flex-direction: column;
+        align-items: center;
         padding: 2rem;
         background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
         border-radius: 10px;
         margin: 20px;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        max-width: 1200px;
+        margin: 40px auto;
+    }
+
+    .auction-title {
+        font-family: 'Playfair Display', serif;
+        font-size: 2.5rem;
+        color: var(--color-accent);
+        margin-bottom: 1rem;
+        animation: slideIn 1s ease-out;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-50px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .auction-image-container {
-        flex: 1;
-    }
-
-    .auction-details-container {
-        flex: 2;
+        width: 100%;
+        max-width: 600px;
+        margin-bottom: 2rem;
     }
 
     .auction-image {
@@ -218,19 +231,35 @@ $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/auction-site/';
         transition: transform var(--transition-speed) ease;
     }
 
-    .auction-details {
-        background-color: var(--color-primary);
-        border-radius: 10px;
-        padding: 2rem;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    .auction-details-container {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        width: 100%;
+        max-width: 800px;
     }
 
-    .auction-details p {
-        margin: 1rem 0;
+    .auction-detail-card {
+        background-color: var(--color-primary);
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        animation: fadeIn 0.5s ease-in-out;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .auction-detail-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(201, 165, 92, 0.3);
+        background: linear-gradient(135deg, var(--color-accent), var(--color-primary));
+    }
+
+    .auction-detail-card p {
+        margin: 0.5rem 0;
         color: var(--color-text-muted);
     }
 
-    .auction-details strong {
+    .auction-detail-card strong {
         color: var(--color-text);
     }
 
@@ -309,6 +338,34 @@ $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/auction-site/';
         margin-top: 3.25rem;
     }
 
+    .admin-nav {
+        display: flex;
+        justify-content: center;
+        background-color: var(--color-secondary);
+        padding: 1rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .admin-nav ul {
+        list-style: none;
+        padding: 0;
+        display: flex;
+        gap: 2rem;
+    }
+
+    .admin-nav a {
+        color: var(--color-accent);
+        text-decoration: none;
+        font-weight: 600;
+        transition: color var(--transition-speed) ease;
+    }
+
+    .admin-nav a:hover {
+        color: var(--color-text);
+    }
+
     @media (max-width: 768px) {
         .main-content {
             flex-direction: column;
@@ -317,6 +374,10 @@ $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/auction-site/';
         .auction-image-container,
         .auction-details-container {
             flex: 1;
+        }
+
+        .auction-details-container {
+            grid-template-columns: 1fr;
         }
     }
     </style>
@@ -348,6 +409,7 @@ $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/auction-site/';
     </div>
 
     <div class="main-content">
+        <h1 class="auction-title"><?php echo htmlspecialchars($auction['title']); ?></h1>
         <?php if ($is_admin): ?>
             <a href="../admin/pending_auctions.php" class="back-button">← Back to Pending Auctions</a>
         <?php else: ?>
@@ -363,56 +425,71 @@ $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/auction-site/';
                 <?php endif; ?>
             </div>
             <div class="auction-details-container">
-                <h1><?php echo htmlspecialchars($auction['title']); ?></h1>
-                <div class="auction-details">
-                    <?php if ($is_admin): ?>
-                        <!-- Admin View -->
-                        <!-- Existing admin-specific content -->
-                    <?php else: ?>
-                        <!-- Regular User View -->
-                        <p><strong>Seller:</strong> <?php echo htmlspecialchars($auction['seller_name']); ?></p>
-                        <p><strong>Description:</strong> <?php echo nl2br(htmlspecialchars($auction['description'])); ?></p>
-                        <p><strong>Start Price:</strong> $<?php echo number_format($auction['start_price'], 2); ?></p>
-                        <p><strong>Current Highest Bid:</strong> $<?php echo number_format($auction['highest_bid'] ?? $auction['start_price'], 2); ?></p>
-                        <p><strong>Start Time:</strong> <?php echo $auction['start_time']; ?></p>
-                        <p><strong>End Time:</strong> <?php echo $auction['end_time']; ?></p>
-                        <p><strong>Status:</strong> <?php echo $auction_ended ? 'Ended' : 'Active'; ?></p>
+                <div class="auction-detail-card">
+                    <p><strong>Seller:&nbsp;&nbsp;&nbsp;</strong> <?php echo htmlspecialchars($auction['seller_name']); ?></p>
+                </div>
+                <div class="auction-detail-card">
+                    <p><strong>Description:&nbsp;&nbsp;&nbsp;</strong> <?php echo nl2br(htmlspecialchars($auction['description'])); ?></p>
+                </div>
+                <div class="auction-detail-card">
+                    <p><strong>Start Price:&nbsp;&nbsp;&nbsp;</strong> $<?php echo number_format($auction['start_price'], 2); ?></p>
+                </div>
+                <div class="auction-detail-card">
+                    <p><strong>Current Highest Bid:</strong> $<?php echo number_format($auction['highest_bid'] ?? $auction['start_price'], 2); ?></p>
+                </div>
+                <div class="auction-detail-card">
+                    <p><strong>Start Time:</strong> <?php echo $auction['start_time']; ?></p>
+                </div>
+                <div class="auction-detail-card">
+                    <p><strong>End Time:</strong> <?php echo $auction['end_time']; ?></p>
+                </div>
+                <div class="auction-detail-card">
+                    <p><strong>Status:</strong> <?php echo $auction_ended ? 'Ended' : 'Active'; ?></p>
+                </div>
+                <?php if ($is_admin): ?>
+                    <div class="auction-detail-card">
+                        <p><strong>All Bids:</strong></p>
+                        <ul>
+                            <?php foreach ($all_bids as $bid): ?>
+                                <li><?php echo htmlspecialchars($bid['username']); ?>: $<?php echo number_format($bid['amount'], 2); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+            </div>
 
-                        <?php if (is_logged_in() && !is_admin() && !$is_owner): ?>
-                            <form method="POST" action="">
-                                <input type="hidden" name="toggle_favorite" value="1">
-                                <button type="submit" class="favorite-button <?php echo $is_favorited ? 'unfavorite-button' : ''; ?>">
-                                    <?php echo $is_favorited ? 'Remove from Favorites' : 'Add to Favorites'; ?>
-                                </button>
-                            </form>
-                        <?php endif; ?>
+            <?php if (is_logged_in() && !is_admin() && !$is_owner): ?>
+                <form method="POST" action="">
+                    <input type="hidden" name="toggle_favorite" value="1">
+                    <button type="submit" class="favorite-button <?php echo $is_favorited ? 'unfavorite-button' : ''; ?>">
+                        <?php echo $is_favorited ? 'Remove from Favorites' : 'Add to Favorites'; ?>
+                    </button>
+                </form>
+            <?php endif; ?>
 
-                        <?php if (!$auction_ended): ?>
-                            <?php if (is_logged_in()): ?>
-                                <?php if ($is_owner): ?>
-                                    <form method="POST" onsubmit="return confirm('Are you sure you want to delete this auction?');">
-                                        <input type="hidden" name="delete_auction" value="1">
-                                        <button type="submit" class="delete-button">Delete Auction</button>
-                                    </form>
-                                <?php elseif (!is_admin()): ?>
-                                    <form method="POST" action="">
-                                        <label for="bid_amount">Your Bid:</label>
-                                        <input type="number" id="bid_amount" name="bid_amount" min="<?php echo ($auction['highest_bid'] ?? $auction['start_price']) + 0.01; ?>" step="0.01" required>
-                                        <button type="submit">Place Bid</button>
-                                    </form>
-                                    <?php if (isset($user_highest_bid) && $user_highest_bid > 0): ?>
-                                        <p>Your highest bid: $<?php echo number_format($user_highest_bid, 2); ?></p>
-                                    <?php endif; ?>
-                                <?php endif; ?>
-                            <?php else: ?>
-                                <p>Please <a href="login.php">log in</a> to place a bid or favorite this auction.</p>
-                            <?php endif; ?>
-                        <?php else: ?>
-                            <p>This auction has ended.</p>
+            <?php if (!$auction_ended): ?>
+                <?php if (is_logged_in()): ?>
+                    <?php if ($is_owner): ?>
+                        <form method="POST" onsubmit="return confirm('Are you sure you want to delete this auction?');">
+                            <input type="hidden" name="delete_auction" value="1">
+                            <button type="submit" class="delete-button">Delete Auction</button>
+                        </form>
+                    <?php elseif (!is_admin()): ?>
+                        <form method="POST" action="">
+                            <label for="bid_amount">Your Bid:</label>
+                            <input type="number" id="bid_amount" name="bid_amount" min="<?php echo ($auction['highest_bid'] ?? $auction['start_price']) + 0.01; ?>" step="0.01" required>
+                            <button type="submit">Place Bid</button>
+                        </form>
+                        <?php if (isset($user_highest_bid) && $user_highest_bid > 0): ?>
+                            <p>Your highest bid: $<?php echo number_format($user_highest_bid, 2); ?></p>
                         <?php endif; ?>
                     <?php endif; ?>
-                </div>
-            </div>
+                <?php else: ?>
+                    <p>Please <a href="login.php">log in</a> to place a bid or favorite this auction.</p>
+                <?php endif; ?>
+            <?php else: ?>
+                <p>This auction has ended.</p>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </body>

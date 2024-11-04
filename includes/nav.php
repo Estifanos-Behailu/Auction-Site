@@ -113,6 +113,7 @@
                 <li><a href="<?php echo $base_url; ?>user/lost_auctions.php" class="nav-link">Lost Auctions</a></li>
                 <li><a href="<?php echo $base_url; ?>user/active_auctions.php" class="nav-link">Active Auctions</a></li>
                 <li><a href="<?php echo $base_url; ?>user/favorites.php" class="nav-link">Favorites</a></li>
+                <li><a href="<?php echo $base_url; ?>user/report_item.php" class="nav-link">Report</a></li>
                 <li><a href="<?php echo $base_url; ?>public/logout.php" class="nav-link">Logout</a></li>
             <?php endif; ?>
         </ul>
